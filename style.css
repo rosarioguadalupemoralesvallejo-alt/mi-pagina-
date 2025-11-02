@@ -21,6 +21,12 @@ nav ul li {
   left: 0;
   background: white;
   color: #a0002d;  /*   */
+ @media (max-width: 600px) {
+  .logo {
+    max-width: 180px;
+  }
+}
+
   border-radius: 5px;
   box-shadow: 0 2px 6px rgba(0,0,0,0.2);
   min-width: 160px;
@@ -221,3 +227,4 @@ button {
 button:hover {
   background: #c00040;
 }
+
