@@ -1,10 +1,16 @@
-<!DOCTYPE html>  
+<<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Contacto - CHARO</title>
   <link rel="stylesheet" href="style.css">
+  <style>
+    iframe { border: 0; width: 100%; height: 300px; border-radius: 10px; margin-top: 10px; }
+    label { display: block; margin-top: 10px; font-weight: bold; }
+    input, textarea { width: 100%; padding: 8px; margin: 5px 0; border-radius: 5px; border: 1px solid #ccc; }
+    button { background: #a0002d; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; margin-top: 15px; }
+  </style>
 </head>
 <body>
   <header>
@@ -19,34 +25,78 @@
 
   <main>
     <h1>Haz tu pedido</h1>
-    <h3>El costo adicional por envio se le cobrara dependiendo la distancia que se recorra,si es solo reserva detallar en el lugar de entrega sera en la tienda </h3>
+    <h3>El costo adicional por envío se calculará según la distancia desde tu ubicación hasta la tienda en Sopachuy, Calle Entre Ríos.</h3>
 
-    <!-- Aquí aparecerá el producto seleccionado -->
     <h2 id="productoSeleccionado" style="text-align:center; color:#a0002d;"></h2>
 
     <form action="https://formspree.io/f/xpwyrwnq" method="POST">
       <input type="text" name="nombre" placeholder="Nombre" required>
       <input type="text" name="producto" placeholder="Producto que deseas" required>
       <input type="number" name="cantidad" placeholder="Cantidad" required>
-      <input type="text" name="lugar de entrega" placeholder="Lugar de entrega" required>
-      <textarea name="detalles" placeholder="Detalles del pedido"></textarea>
+
+      <!-- 📍 Ubicación automática del cliente -->
+      <label>Tu ubicación actual (detectada automáticamente)</label>
+      <input type="text" id="ubicacionCliente" name="ubicacionCliente" placeholder="Detectando ubicación..." readonly>
+      <iframe id="mapaCliente" src=""></iframe>
+
+      <!-- 🚚 Lugar de entrega -->
+      <label>Lugar de entrega (donde quieres recibir el producto)</label>
+      <input type="text" id="lugarEntrega" name="lugarEntrega" placeholder="Ej: Calle Bolívar N°123, Sopachuy" required>
+
+      <!-- 📝 Detalles -->
+      <label>Detalles del pedido</label>
+      <textarea name="detalles" placeholder="Ej: Entregar a las 5pm, referencias, etc."></textarea>
+
+      <!-- 🏪 Mapa de la tienda -->
+      <label>📍 Ubicación de la Tienda CHARO (Sopachuy, Calle Entre Ríos)</label>
+      <iframe
+        src="https://www.google.com/maps?q=-19.49235,-64.47436&hl=es&z=17&output=embed"
+        title="Ubicación Tienda CHARO - Sopachuy">
+      </iframe>
+
       <button type="submit">Enviar Pedido</button>
     </form>
   </main>
 
-  <!-- 🔧 SCRIPT para detectar y mostrar el producto seleccionado -->
   <script>
-    // Detectar parámetro "producto" en la URL
+    // 🛒 Mostrar producto seleccionado desde la URL
     const params = new URLSearchParams(window.location.search);
     const producto = params.get("producto");
-
-    // Si existe el producto, colocarlo automáticamente en el formulario
     if (producto) {
       document.querySelector('input[name="producto"]').value = producto;
       document.getElementById("productoSeleccionado").textContent = "🛒 Estás comprando: " + producto;
     }
 
-    // Enviar también por WhatsApp además de Formspree
+    // 📍 Detectar ubicación del cliente (por GPS)
+    const ubicacionInput = document.getElementById("ubicacionCliente");
+    const mapaCliente = document.getElementById("mapaCliente");
+
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(async (pos) => {
+        const lat = pos.coords.latitude;
+        const lon = pos.coords.longitude;
+
+        // Mostrar mapa con ubicación del cliente
+        mapaCliente.src = `https://www.google.com/maps?q=${lat},${lon}&hl=es&z=16&output=embed`;
+
+        // Obtener dirección con OpenStreetMap
+        const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}`;
+        try {
+          const res = await fetch(url);
+          const data = await res.json();
+          const direccion = data.display_name || `Lat: ${lat}, Lon: ${lon}`;
+          ubicacionInput.value = direccion + ` (https://www.google.com/maps?q=${lat},${lon})`;
+        } catch {
+          ubicacionInput.value = `https://www.google.com/maps?q=${lat},${lon}`;
+        }
+      }, () => {
+        ubicacionInput.value = "No se pudo detectar tu ubicación automáticamente.";
+      });
+    } else {
+      ubicacionInput.value = "Tu navegador no permite acceder a la ubicación.";
+    }
+
+    // 📱 Enviar pedido (Formspree + WhatsApp)
     const form = document.querySelector("form");
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
@@ -55,20 +105,21 @@
       const nombre = data.get("nombre");
       const producto = data.get("producto");
       const cantidad = data.get("cantidad");
-      const lugar = data.get("lugar de entrega");
+      const ubicacion = data.get("ubicacionCliente");
+      const entrega = data.get("lugarEntrega");
       const detalles = data.get("detalles");
 
-      // Enviar primero a Formspree
+      // Enviar a Formspree
       const response = await fetch(form.action, {
         method: "POST",
         body: data,
         headers: { Accept: "application/json" }
       });
 
-      // Si Formspree responde OK, abrir WhatsApp con los mismos datos
       if (response.ok) {
-        const mensaje = `🍰 *Nuevo pedido CHARO*\n\n👤 Nombre: ${nombre}\n📦 Producto: ${producto}\n🔢 Cantidad: ${cantidad}\n📍 Entrega: ${lugar}\n📝 Detalles: ${detalles}`;
-        const telefono = "59173466117"; // <-- tu número de WhatsApp con prefijo de país
+        // Mensaje de WhatsApp
+        const mensaje = `🍰 *Nuevo pedido CHARO*\n\n👤 Nombre: ${nombre}\n📦 Producto: ${producto}\n🔢 Cantidad: ${cantidad}\n\n📍 Ubicación del cliente: ${ubicacion}\n🚚 Lugar de entrega: ${entrega}\n📝 Detalles: ${detalles}\n\n🏪 Tienda CHARO: Sopachuy, Calle Entre Ríos\nhttps://www.google.com/maps?q=-19.49235,-64.47436`;
+        const telefono = "59173466117"; // <-- tu número con prefijo de país
         const url = `https://api.whatsapp.com/send?phone=${telefono}&text=${encodeURIComponent(mensaje)}`;
         window.open(url, "_blank");
 
@@ -81,4 +132,3 @@
   </script>
 </body>
 </html>
-
